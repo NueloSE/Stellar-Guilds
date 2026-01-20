@@ -197,15 +197,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Security
 
-For security concerns, please email security@stellarguilds.io
-
-## Community
-
-- **Discord**: [Join our community](https://discord.gg/stellarguilds)
-- **Twitter**: [@StellarGuilds](https://twitter.com/stellarguilds)
-- **Forum**: [discussions.stellarguilds.io](https://discussions.stellarguilds.io)
 
 ## Acknowledgments
 
