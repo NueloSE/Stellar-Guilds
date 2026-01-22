@@ -39,14 +39,44 @@ This directory contains all Soroban smart contracts for the Stellar Guilds platf
 ```
 contract/
 ├── src/
-│   └── lib.rs              # Main contract implementation
+│   ├── lib.rs              # Main contract implementation
+│   ├── guild/              # Guild membership module
+│   │   ├── mod.rs
+│   │   ├── membership.rs
+│   │   ├── storage.rs
+│   │   └── types.rs
+│   └── payment/            # Payment distribution module
+│       ├── mod.rs
+│       ├── distribution.rs
+│       ├── storage.rs
+│       └── types.rs
 ├── Cargo.toml              # Rust project configuration
 └── README.md               # This file
 ```
 
+## Implemented Contract Modules
+
+### Guild Membership Module
+- ✅ Guild creation with metadata
+- ✅ Member management with role assignments  
+- ✅ Permission-based access control
+- ✅ Event tracking for all state changes
+
+### Payment Distribution Module
+- ✅ Payment pool creation with multiple recipients
+- ✅ Percentage-based distribution rules
+- ✅ Equal split distributions
+- ✅ Weighted distribution based on contribution
+- ✅ Automatic payment execution
+- ✅ Distribution rule validation
+- ✅ Support for XLM and custom tokens
+- ✅ Atomic execution (all payments succeed or all fail)
+- ✅ Event emission for transparency
+- ✅ Comprehensive unit tests
+
 ## Planned Contract Modules
 
-The following contract modules will be implemented:
+The following contract modules are planned for future implementation:
 
 - **Guild Contracts**: Guild creation, membership, and governance
 - **Bounty Contracts**: Task creation, escrow, and completion tracking

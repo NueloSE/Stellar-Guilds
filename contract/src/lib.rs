@@ -11,6 +11,14 @@ use guild::membership::{
 use guild::storage;
 use guild::types::{Member, Role};
 
+mod bounty;
+use bounty::types::{Bounty, BountyStatus};
+use bounty::{
+    create_bounty, fund_bounty, claim_bounty, submit_work, approve_completion,
+    cancel_bounty_auth, release_escrow, get_bounty_data, get_guild_bounties_list,
+};
+
+
 /// Stellar Guilds - Main Contract Entry Point
 /// 
 /// This is the foundational contract for the Stellar Guilds platform.
@@ -190,6 +198,76 @@ impl StellarGuildsContract {
         required_role: Role,
     ) -> bool {
         has_permission(&env, guild_id, address, required_role)
+    }
+
+    // ============ Bounty Functions ============
+
+    /// Create a new bounty
+    pub fn create_bounty(
+        env: Env,
+        guild_id: u64,
+        creator: Address,
+        title: String,
+        description: String,
+        reward_amount: i128,
+        token: Address,
+        expiry: u64,
+    ) -> u64 {
+        create_bounty(
+            &env,
+            guild_id,
+            creator,
+            title,
+            description,
+            reward_amount,
+            token,
+            expiry,
+        )
+    }
+
+    /// Fund a bounty
+    pub fn fund_bounty(
+        env: Env,
+        bounty_id: u64,
+        funder: Address,
+        amount: i128,
+    ) -> bool {
+        fund_bounty(&env, bounty_id, funder, amount)
+    }
+
+    /// Claim a bounty
+    pub fn claim_bounty(env: Env, bounty_id: u64, claimer: Address) -> bool {
+        claim_bounty(&env, bounty_id, claimer)
+    }
+
+    /// Submit work for a bounty
+    pub fn submit_work(env: Env, bounty_id: u64, submission_url: String) -> bool {
+        submit_work(&env, bounty_id, submission_url)
+    }
+
+    /// Approve bounty completion
+    pub fn approve_completion(env: Env, bounty_id: u64, approver: Address) -> bool {
+        approve_completion(&env, bounty_id, approver)
+    }
+
+    /// Release escrow funds (can be called by anyone if completed)
+    pub fn release_escrow(env: Env, bounty_id: u64) -> bool {
+        release_escrow(&env, bounty_id)
+    }
+
+    /// Cancel a bounty
+    pub fn cancel_bounty(env: Env, bounty_id: u64, canceller: Address) -> bool {
+        cancel_bounty_auth(&env, bounty_id, canceller)
+    }
+
+    /// Get bounty details
+    pub fn get_bounty(env: Env, bounty_id: u64) -> Bounty {
+        get_bounty_data(&env, bounty_id)
+    }
+
+    /// Get all bounties for a guild
+    pub fn get_guild_bounties(env: Env, guild_id: u64) -> Vec<Bounty> {
+        get_guild_bounties_list(&env, guild_id)
     }
 }
 
@@ -874,6 +952,143 @@ mod tests {
         
         // Admin tries to add owner - should panic
         client.add_member(&guild_id, &new_owner, &Role::Owner, &admin);
+    }
+
+    // ============ Payment Distribution Tests ============
+
+    #[test]
+    fn test_create_payment_pool_percentage() {
+        let env = Env::default();
+        env.budget().reset_unlimited();
+        
+        let contract_id = env.register_contract(None, StellarGuildsContract);
+        let client = StellarGuildsContractClient::new(&env, &contract_id);
+        client.initialize();
+        
+        let creator = Address::generate(&env);
+        let token = Some(Address::generate(&env)); // Mock token address
+        
+        // Mock auth
+        env.mock_all_auths();
+        
+        let pool_id = client.create_payment_pool(&1000i128, &token, &DistributionRule::Percentage, &creator);
+        assert_eq!(pool_id, 1u64);
+    }
+
+    #[test]
+    fn test_add_recipient_and_validate() {
+        let env = Env::default();
+        env.budget().reset_unlimited();
+        
+        let contract_id = env.register_contract(None, StellarGuildsContract);
+        let client = StellarGuildsContractClient::new(&env, &contract_id);
+        client.initialize();
+        
+        let creator = Address::generate(&env);
+        let recipient1 = Address::generate(&env);
+        let recipient2 = Address::generate(&env);
+        let token = Some(Address::generate(&env));
+        
+        env.mock_all_auths();
+        
+        // Create pool
+        let pool_id = client.create_payment_pool(&1000i128, &token, &DistributionRule::Percentage, &creator);
+        
+        // Add recipients
+        client.add_recipient(&pool_id, &recipient1, &50u32, &creator);
+        client.add_recipient(&pool_id, &recipient2, &50u32, &creator);
+        
+        // Validate distribution
+        let is_valid = client.validate_distribution(&pool_id);
+        assert_eq!(is_valid, true);
+    }
+
+    #[test]
+    fn test_get_recipient_amount_percentage() {
+        let env = Env::default();
+        env.budget().reset_unlimited();
+        
+        let contract_id = env.register_contract(None, StellarGuildsContract);
+        let client = StellarGuildsContractClient::new(&env, &contract_id);
+        client.initialize();
+        
+        let creator = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        let token = Some(Address::generate(&env));
+        
+        env.mock_all_auths();
+        
+        // Create pool
+        let pool_id = client.create_payment_pool(&1000i128, &token, &DistributionRule::Percentage, &creator);
+        
+        // Add recipient with 25% share
+        client.add_recipient(&pool_id, &recipient, &25u32, &creator);
+        
+        // Get recipient amount
+        let amount = client.get_recipient_amount(&pool_id, &recipient);
+        assert_eq!(amount, 250i128); // 25% of 1000
+    }
+
+    #[test]
+    fn test_equal_split_distribution() {
+        let env = Env::default();
+        env.budget().reset_unlimited();
+        
+        let contract_id = env.register_contract(None, StellarGuildsContract);
+        let client = StellarGuildsContractClient::new(&env, &contract_id);
+        client.initialize();
+        
+        let creator = Address::generate(&env);
+        let recipient1 = Address::generate(&env);
+        let recipient2 = Address::generate(&env);
+        let recipient3 = Address::generate(&env);
+        let token = Some(Address::generate(&env));
+        
+        env.mock_all_auths();
+        
+        // Create pool
+        let pool_id = client.create_payment_pool(&1000i128, &token, &DistributionRule::EqualSplit, &creator);
+        
+        // Add recipients
+        client.add_recipient(&pool_id, &recipient1, &1u32, &creator); // share value doesn't matter for equal split
+        client.add_recipient(&pool_id, &recipient2, &1u32, &creator);
+        client.add_recipient(&pool_id, &recipient3, &1u32, &creator);
+        
+        // Get recipient amounts
+        let amount1 = client.get_recipient_amount(&pool_id, &recipient1);
+        let amount2 = client.get_recipient_amount(&pool_id, &recipient2);
+        let amount3 = client.get_recipient_amount(&pool_id, &recipient3);
+        
+        // Each should get 1000 / 3 = 333 (integer division)
+        assert_eq!(amount1, 333i128);
+        assert_eq!(amount2, 333i128);
+        assert_eq!(amount3, 333i128);
+    }
+
+    #[test]
+    fn test_cancel_distribution() {
+        let env = Env::default();
+        env.budget().reset_unlimited();
+        
+        let contract_id = env.register_contract(None, StellarGuildsContract);
+        let client = StellarGuildsContractClient::new(&env, &contract_id);
+        client.initialize();
+        
+        let creator = Address::generate(&env);
+        let token = Some(Address::generate(&env));
+        
+        env.mock_all_auths();
+        
+        // Create pool
+        let pool_id = client.create_payment_pool(&1000i128, &token, &DistributionRule::Percentage, &creator);
+        
+        // Cancel pool
+        let result = client.cancel_distribution(&pool_id, &creator);
+        assert_eq!(result, true);
+        
+        // Check status
+        let status = client.get_pool_status(&pool_id);
+        assert_eq!(status, DistributionStatus::Cancelled);
     }
 }
 
