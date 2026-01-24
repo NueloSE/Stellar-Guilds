@@ -14,6 +14,7 @@ pub use management::{
     initialize_treasury,
     propose_withdrawal,
     set_budget,
+        execute_milestone_payment, 
 };
 
 pub use storage::initialize_treasury_storage;

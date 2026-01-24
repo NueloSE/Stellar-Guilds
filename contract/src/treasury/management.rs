@@ -341,6 +341,85 @@ pub fn execute_transaction(env: &Env, tx_id: u64, executor: Address) -> bool {
     true
 }
 
+pub fn execute_milestone_payment(
+    env: &Env,
+    treasury_id: u64,
+    token: Option<Address>,
+    recipient: Address,
+    amount: i128,
+) -> bool {
+    if amount <= 0 {
+        panic!("amount must be positive");
+    }
+
+    let mut treasury = get_treasury(env, treasury_id).expect("treasury not found");
+    if treasury.paused {
+        panic!("treasury is paused");
+    }
+
+    // Budget enforcement under the "milestone" category
+    let category = String::from_str(env, "milestone");
+    enforce_budget(env, treasury_id, &category, amount);
+
+    // Allowance enforcement (if any) keyed by current contract address;
+    // if no allowance exists this is a no-op.
+    let executor = env.current_contract_address();
+    enforce_allowance(env, treasury_id, &executor, &token, amount);
+
+    // Move funds from treasury to recipient
+    match token {
+        Some(ref token_addr) => {
+            let client = TokenClient::new(env, token_addr);
+
+            let mut balances = treasury.token_balances.clone();
+            let current = balances.get(token_addr).unwrap_or(0i128);
+            if current < amount {
+                panic!("insufficient treasury balance");
+            }
+            balances.set(token_addr.clone(), current - amount);
+            treasury.token_balances = balances;
+
+            client.transfer(&env.current_contract_address(), &recipient, &amount);
+        }
+        None => {
+            if treasury.balance_xlm < amount {
+                panic!("insufficient XLM balance");
+            }
+            treasury.balance_xlm -= amount;
+        }
+    }
+
+    treasury.total_withdrawals += amount;
+    store_treasury(env, &treasury);
+
+    // Record a MilestonePayment transaction as already executed
+    let tx_id = get_next_tx_id(env);
+    let now = env.ledger().timestamp();
+    let tx = Transaction {
+        id: tx_id,
+        treasury_id,
+        tx_type: TransactionType::MilestonePayment,
+        amount,
+        token,
+        recipient: Some(recipient),
+        proposer: executor,
+        approvals: Vec::new(env),
+        status: TransactionStatus::Executed,
+        created_at: now,
+        expires_at: now,
+        reason: String::from_str(env, "milestone_payment"),
+    };
+    store_transaction(env, &tx);
+
+    let event = TransactionExecutedEvent {
+        treasury_id,
+        tx_id,
+    };
+    env.events().publish((b"treasury", b"tx_executed"), event);
+
+    true
+}
+
 pub fn set_budget(
     env: &Env,
     treasury_id: u64,

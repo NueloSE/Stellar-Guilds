@@ -54,6 +54,24 @@ use governance::{
     GovernanceConfig,
 };
 
+mod milestone;
+
+use milestone::types::{Project, Milestone, MilestoneInput, ProjectStatus, MilestoneStatus};
+use milestone::storage::initialize_milestone_storage;
+use milestone::tracker::{
+    create_project as milestone_create_project,
+    add_milestone as milestone_add_milestone,
+    start_milestone as milestone_start_milestone,
+    submit_milestone as milestone_submit_milestone,
+    approve_milestone as milestone_approve_milestone,
+    reject_milestone as milestone_reject_milestone,
+    get_project_progress as milestone_get_project_progress,
+    get_milestone_view as milestone_get_milestone,
+    release_milestone_payment as milestone_release_milestone_payment,
+    extend_milestone_deadline as milestone_extend_milestone_deadline,
+    cancel_project as milestone_cancel_project,
+};
+
 /// Stellar Guilds - Main Contract Entry Point
 /// 
 /// This is the foundational contract for the Stellar Guilds platform.
@@ -1278,3 +1296,7 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::Env;
