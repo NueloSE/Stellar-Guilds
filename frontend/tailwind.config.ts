@@ -60,3 +60,11 @@ const config: Config = {
   },
   plugins: [require("@tailwindcss/typography")],
 };
+        background: "var(--background)",
+        foreground: "var(--foreground)",
+      },
+    },
+  },
+  plugins: [],
+};
+export default config;
