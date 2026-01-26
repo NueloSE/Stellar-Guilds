@@ -14,19 +14,21 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  email       String   @unique
-  username    String   @unique
-  password    String
-  firstName   String
-  lastName    String
-  bio         String?
-  avatarUrl   String?
-  role        String   @default("USER")
-  isActive    Boolean  @default(true)
-  lastLoginAt DateTime?
+  id                String   @id @default(cuid())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  email             String   @unique
+  username          String   @unique
+  password          String
+  firstName         String
+  lastName          String
+  bio               String?
+  avatarUrl         String?
+  role              String   @default("USER")
+  isActive          Boolean  @default(true)
+  lastLoginAt       DateTime?
+  walletAddress     String?  @unique
+  refreshToken      String?
 
   // Relations
   ownedGuilds      Guild[]    @relation("UserOwnerGuilds")
