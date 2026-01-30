@@ -124,7 +124,7 @@ model GuildMembership {
 
   invitedBy User? @relation(fields: [invitedById], references: [id])
 
-    REVOKED
+  //  REVOKED
   @@unique([userId, guildId])
   @@map("guild_memberships")
 }
