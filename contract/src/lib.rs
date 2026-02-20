@@ -54,6 +54,20 @@ use payment::{
     validate_distribution as pay_validate_distribution, DistributionRule, DistributionStatus,
 };
 
+mod subscription;
+use subscription::{
+    cancel_subscription as sub_cancel_subscription, change_tier as sub_change_tier,
+    create_plan as sub_create_plan, days_until_billing as sub_days_until_billing,
+    get_subscription_status as sub_get_subscription_status,
+    is_subscription_active as sub_is_subscription_active,
+    pause_subscription as sub_pause_subscription,
+    process_due_subscriptions as sub_process_due_subscriptions,
+    process_payment as sub_process_payment, retry_payment as sub_retry_payment,
+    resume_subscription as sub_resume_subscription, subscribe as sub_subscribe,
+    BillingCycle, MembershipTier, ProrationResult, Subscription, SubscriptionChange,
+    SubscriptionError, SubscriptionPlan, SubscriptionStatus,
+};
+
 mod dispute;
 use dispute::{
     calculate_vote_weight as dispute_calculate_vote_weight, cast_vote as dispute_cast_vote,
@@ -121,6 +135,7 @@ pub struct StellarGuildsContract;
 impl StellarGuildsContract {
     pub fn initialize(env: Env) -> bool {
         storage::initialize(&env);
+        subscription::storage::initialize_subscription_storage(&env);
         true
     }
 
@@ -1475,6 +1490,228 @@ impl StellarGuildsContract {
             Ok(()) => true,
             Err(e) => panic!("ms_reset_policy error: {}", e as u32),
         }
+    }
+
+    // ============ Subscription Functions ============
+
+    /// Create a new subscription plan
+    ///
+    /// # Arguments
+    /// * `guild_id` - Guild ID (0 for platform-wide plans)
+    /// * `name` - Plan name
+    /// * `description` - Plan description
+    /// * `tier` - Membership tier level
+    /// * `price` - Price amount
+    /// * `token` - Token address (None for native XLM)
+    /// * `billing_cycle` - Billing cycle type
+    /// * `benefits` - List of benefits
+    /// * `created_by` - Creator address
+    ///
+    /// # Returns
+    /// The ID of the newly created plan
+    pub fn create_subscription_plan(
+        env: Env,
+        guild_id: u64,
+        name: String,
+        description: String,
+        tier: MembershipTier,
+        price: i128,
+        token: Option<Address>,
+        billing_cycle: BillingCycle,
+        benefits: Vec<String>,
+        created_by: Address,
+    ) -> u64 {
+        created_by.require_auth();
+        match sub_create_plan(
+            &env,
+            guild_id,
+            name,
+            description,
+            tier,
+            price,
+            token,
+            billing_cycle,
+            benefits,
+            created_by,
+        ) {
+            Ok(id) => id,
+            Err(e) => panic!("create_plan error: {}", e as u32),
+        }
+    }
+
+    /// Subscribe to a plan
+    ///
+    /// # Arguments
+    /// * `plan_id` - ID of the plan to subscribe to
+    /// * `subscriber` - Address subscribing
+    /// * `auto_renew` - Whether to auto-renew
+    ///
+    /// # Returns
+    /// The ID of the newly created subscription
+    pub fn subscribe(env: Env, plan_id: u64, subscriber: Address, auto_renew: bool) -> u64 {
+        subscriber.require_auth();
+        match sub_subscribe(&env, plan_id, subscriber, auto_renew) {
+            Ok(id) => id,
+            Err(e) => panic!("subscribe error: {}", e as u32),
+        }
+    }
+
+    /// Process a subscription payment
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    ///
+    /// # Returns
+    /// true if payment was successful
+    pub fn process_subscription_payment(env: Env, subscription_id: u64) -> bool {
+        match sub_process_payment(&env, subscription_id, 0) {
+            Ok(result) => result,
+            Err(e) => panic!("process_payment error: {}", e as u32),
+        }
+    }
+
+    /// Retry a failed payment
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    ///
+    /// # Returns
+    /// true if payment was successful
+    pub fn retry_subscription_payment(env: Env, subscription_id: u64) -> bool {
+        match sub_retry_payment(&env, subscription_id) {
+            Ok(result) => result,
+            Err(e) => panic!("retry_payment error: {}", e as u32),
+        }
+    }
+
+    /// Pause a subscription
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    /// * `caller` - Address making the request
+    ///
+    /// # Returns
+    /// true if successful
+    pub fn pause_subscription(env: Env, subscription_id: u64, caller: Address) -> bool {
+        caller.require_auth();
+        match sub_pause_subscription(&env, subscription_id, caller) {
+            Ok(result) => result,
+            Err(e) => panic!("pause_subscription error: {}", e as u32),
+        }
+    }
+
+    /// Resume a paused subscription
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    /// * `caller` - Address making the request
+    ///
+    /// # Returns
+    /// true if successful
+    pub fn resume_subscription(env: Env, subscription_id: u64, caller: Address) -> bool {
+        caller.require_auth();
+        match sub_resume_subscription(&env, subscription_id, caller) {
+            Ok(result) => result,
+            Err(e) => panic!("resume_subscription error: {}", e as u32),
+        }
+    }
+
+    /// Cancel a subscription
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    /// * `caller` - Address making the request
+    /// * `reason` - Optional cancellation reason
+    ///
+    /// # Returns
+    /// true if successful
+    pub fn cancel_subscription(
+        env: Env,
+        subscription_id: u64,
+        caller: Address,
+        reason: Option<String>,
+    ) -> bool {
+        caller.require_auth();
+        match sub_cancel_subscription(&env, subscription_id, caller, reason) {
+            Ok(result) => result,
+            Err(e) => panic!("cancel_subscription error: {}", e as u32),
+        }
+    }
+
+    /// Change subscription tier (upgrade/downgrade)
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    /// * `new_plan_id` - New plan ID
+    /// * `effective_immediately` - Whether to apply immediately or at next cycle
+    /// * `caller` - Address making the request
+    ///
+    /// # Returns
+    /// Proration amount (0 if no proration)
+    pub fn change_subscription_tier(
+        env: Env,
+        subscription_id: u64,
+        new_plan_id: u64,
+        effective_immediately: bool,
+        caller: Address,
+    ) -> i128 {
+        caller.require_auth();
+        let change = SubscriptionChange {
+            new_plan_id,
+            effective_immediately,
+            reason: None,
+        };
+        match sub_change_tier(&env, subscription_id, change, caller) {
+            Ok(proration) => proration.map(|p| p.amount).unwrap_or(0),
+            Err(e) => panic!("change_tier error: {}", e as u32),
+        }
+    }
+
+    /// Get subscription status
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    ///
+    /// # Returns
+    /// Subscription details
+    pub fn get_subscription(env: Env, subscription_id: u64) -> Subscription {
+        match sub_get_subscription_status(&env, subscription_id) {
+            Some(sub) => sub,
+            None => panic!("subscription not found"),
+        }
+    }
+
+    /// Check if a subscription is active
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    ///
+    /// # Returns
+    /// true if subscription is active
+    pub fn is_subscription_active(env: Env, subscription_id: u64) -> bool {
+        sub_is_subscription_active(&env, subscription_id)
+    }
+
+    /// Get days until next billing
+    ///
+    /// # Arguments
+    /// * `subscription_id` - ID of the subscription
+    ///
+    /// # Returns
+    /// Days until next billing (0 if past due)
+    pub fn days_until_billing(env: Env, subscription_id: u64) -> u64 {
+        sub_days_until_billing(&env, subscription_id)
+    }
+
+    /// Process due subscriptions (can be called by anyone)
+    ///
+    /// # Arguments
+    /// * `limit` - Maximum number of subscriptions to process
+    ///
+    /// # Returns
+    /// Number of subscriptions processed
+    pub fn process_due_subscriptions(env: Env, limit: u32) -> u32 {
+        sub_process_due_subscriptions(&env, limit)
     }
 }
 
