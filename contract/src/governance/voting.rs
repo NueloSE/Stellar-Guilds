@@ -9,6 +9,7 @@ use crate::governance::types::{
     Proposal, ProposalFinalizedEvent, ProposalStatus, Vote, VoteCastEvent, VoteDecision,
 };
 use crate::guild::storage as guild_storage;
+use crate::reputation::scoring::compute_governance_weight;
 
 const EVENT_TOPIC_VOTE_CAST: &str = "vote_cast";
 const EVENT_TOPIC_VOTE_DELEGATED: &str = "vote_delegated";
@@ -43,7 +44,7 @@ fn compute_total_weight_and_tallies(env: &Env, proposal: &Proposal) -> (i128, i1
 
     for member in members.iter() {
         let rep = resolve_delegate(env, proposal.guild_id, &member.address);
-        let weight = role_weight(&member.role);
+        let weight = compute_governance_weight(env, &member.address, proposal.guild_id, &member.role);
 
         let decision_opt = if rep == member.address {
             votes_map.get(member.address.clone()).map(|v| v.decision)
@@ -87,7 +88,7 @@ pub fn vote(env: &Env, proposal_id: u64, voter: Address, decision: VoteDecision)
     let member = guild_storage::get_member(env, proposal.guild_id, &voter)
         .unwrap_or_else(|| panic!("voter must be guild member"));
 
-    let weight = role_weight(&member.role);
+    let weight = compute_governance_weight(env, &voter, proposal.guild_id, &member.role);
 
     let vote = Vote {
         voter: voter.clone(),

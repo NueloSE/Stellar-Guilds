@@ -32,6 +32,14 @@ use analytics::{
     CategoryBreakdown, SpendingForecast, SpendingSummary, SpendingTrend, TreasurySnapshot,
 };
 
+mod reputation;
+use reputation::{
+    compute_governance_weight as rep_governance_weight, get_badges as rep_get_badges,
+    get_contributions as rep_get_contributions, get_decayed_profile, get_global_reputation,
+    record_contribution as rep_record_contribution, Badge, ContributionRecord, ContributionType,
+    ReputationProfile,
+};
+
 mod governance;
 use governance::{
     cancel_proposal as gov_cancel_proposal, create_proposal as gov_create_proposal,
@@ -856,6 +864,66 @@ impl StellarGuildsContract {
         };
         store_snapshot(&env, &snapshot);
         true
+    }
+
+    // ============ Reputation Functions ============
+
+    /// Record a contribution and update reputation score.
+    /// Awards badges automatically if thresholds are met.
+    pub fn record_contribution(
+        env: Env,
+        guild_id: u64,
+        contributor: Address,
+        contribution_type: ContributionType,
+        reference_id: u64,
+    ) {
+        contributor.require_auth();
+        rep_record_contribution(&env, guild_id, &contributor, contribution_type, reference_id);
+    }
+
+    /// Get a user's reputation profile for a specific guild (with decay applied).
+    pub fn get_reputation(
+        env: Env,
+        guild_id: u64,
+        address: Address,
+    ) -> ReputationProfile {
+        get_decayed_profile(&env, &address, guild_id)
+            .unwrap_or_else(|| panic!("no reputation profile found"))
+    }
+
+    /// Get a user's aggregate reputation across all guilds.
+    pub fn get_reputation_global(env: Env, address: Address) -> u64 {
+        get_global_reputation(&env, &address)
+    }
+
+    /// Get contribution history for a user in a guild.
+    pub fn get_reputation_contributions(
+        env: Env,
+        guild_id: u64,
+        address: Address,
+        limit: u32,
+    ) -> Vec<ContributionRecord> {
+        rep_get_contributions(&env, &address, guild_id, limit)
+    }
+
+    /// Get badges earned by a user in a guild.
+    pub fn get_reputation_badges(
+        env: Env,
+        guild_id: u64,
+        address: Address,
+    ) -> Vec<Badge> {
+        rep_get_badges(&env, &address, guild_id)
+    }
+
+    /// Get computed governance weight for a user (role + reputation).
+    pub fn get_governance_weight_for(
+        env: Env,
+        guild_id: u64,
+        address: Address,
+    ) -> i128 {
+        let member = guild::storage::get_member(&env, guild_id, &address)
+            .unwrap_or_else(|| panic!("not a guild member"));
+        rep_governance_weight(&env, &address, guild_id, &member.role)
     }
 
     // ============ Milestone Tracking Functions ============
