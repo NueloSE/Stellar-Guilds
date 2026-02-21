@@ -3,3 +3,9 @@ export { Input } from './Input'
 export { Textarea } from './Textarea'
 export { Card } from './Card'
 export { Modal } from './Modal'
+export { 
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+ } from './DropdownMenu'

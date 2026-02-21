@@ -2,8 +2,11 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui";
+import LanguageSelector from "@/components/LanguageSelector";
+import { useTranslations } from 'next-intl';
 
 export default function Navbar() {
+  const t = useTranslations('navigation');
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -16,10 +19,10 @@ export default function Navbar() {
   }, []);
 
   const navLinks = [
-    { label: "Features", href: "#features" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "Benefits", href: "#benefits" },
-    { label: "Use Cases", href: "#use-cases" },
+    { label: t('home'), href: "/" },
+    { label: t('guilds'), href: "/guilds" },
+    { label: t('bounties'), href: "/bounties" },
+    { label: t('reputation'), href: "/reputation-preview" },
   ];
 
   const scrollToSection = (href: string) => {
@@ -75,14 +78,15 @@ export default function Navbar() {
 
             {/* Desktop CTA */}
             <div className="hidden md:flex items-center gap-4">
+              <LanguageSelector />
               <Button
                 variant="ghost"
                 className="text-slate-300 hover:text-white hover:bg-white/5"
               >
-                Sign In
+                {t('login')}
               </Button>
               <Button className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-500 hover:to-violet-600 text-white border-0 shadow-lg shadow-violet-500/25">
-                Get Started
+                {t('getStarted')}
               </Button>
             </div>
 
@@ -123,6 +127,9 @@ export default function Navbar() {
                   </button>
                 ))}
                 <div className="pt-4 border-t border-slate-800 space-y-3">
+                  <div className="w-full flex justify-center">
+                    <LanguageSelector />
+                  </div>
                   <Button
                     variant="ghost"
                     className="w-full justify-center text-slate-300"

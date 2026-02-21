@@ -5,8 +5,10 @@ import { Button } from "@/components/ui";
 import ParticleBackground from "@/components/landing-page/ui/ParticleBackground";
 import Link from "next/link";
 import HeroTypewriter from "../ui/HeroTypewriter";
+import { useTranslations } from 'next-intl';
 
 export default function HeroSection() {
+  const t = useTranslations('hero');
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-slate-950">
       {/* Multi-layer gradient background */}
@@ -43,7 +45,7 @@ export default function HeroSection() {
           >
             <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
             <span className="text-violet-300 text-sm font-medium">
-              Built on Stellar Blockchain
+              {t('secure')}
             </span>
           </motion.div>
 
@@ -54,10 +56,10 @@ export default function HeroSection() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-4xl sm:text-5xl md:text-6xl flex flex-col gap-2 lg:text-7xl font-black font-hero text-white leading-tight mb-6"
           >
-            Empowering Developers to
+            {t('title')}
             <br />
             <span className="inline-block bg-gradient-to-r min-h-[90px] font-hero from-violet-400 to-violet-200 bg-clip-text text-transparent">
-              <HeroTypewriter words={["Collaborate, Earn & Govern"]} />
+              <HeroTypewriter words={[t('subtitle')]} />
             </span>
           </motion.h1>
 
@@ -68,10 +70,7 @@ export default function HeroSection() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg sm:text-xl text-slate-400 max-w-3xl mx-auto mb-10 leading-relaxed"
           >
-            Decentralized guilds, bounties, and reputation for community-driven
-            projects.
-            <br className="hidden sm:block" />
-            Own your work. Build your legacy.
+            {t('tagline')}
           </motion.p>
 
           {/* CTA Buttons */}
@@ -85,7 +84,7 @@ export default function HeroSection() {
               href="/guilds"
               className="group relative inline-flex items-center justify-center px-8 py-4 text-lg bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-500 hover:to-violet-600 text-white border-0 rounded-xl shadow-2xl shadow-violet-500/30 hover:shadow-violet-500/40 transition-all duration-300 gap-2"
             >
-              Explore Guilds
+              {t('exploreGuilds')}
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
 
@@ -94,7 +93,7 @@ export default function HeroSection() {
               className="group relative inline-flex items-center justify-center px-8 py-4 text-lg bg-white/5 border border-slate-700 hover:border-violet-500/50 hover:bg-white/10 text-white rounded-xl backdrop-blur-sm transition-all duration-300 gap-2"
             >
               <Target className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-              Join Bounties
+              {t('joinBounties')}
             </Link>
           </motion.div>
 
@@ -107,15 +106,15 @@ export default function HeroSection() {
           >
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-violet-400" />
-              <span className="text-sm">Decentralized & Secure</span>
+              <span className="text-sm">{t('secure')}</span>
             </div>
             <div className="flex items-center gap-2">
               <Zap className="w-5 h-5 text-violet-400" />
-              <span className="text-sm">Instant Payments</span>
+              <span className="text-sm">{t('payments')}</span>
             </div>
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-violet-400" />
-              <span className="text-sm">Community Governed</span>
+              <span className="text-sm">{t('governed')}</span>
             </div>
           </motion.div>
         </div>
