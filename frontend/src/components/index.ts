@@ -30,6 +30,8 @@ export { ThreadList } from './Forum/ThreadList'
 export { PostItem } from './Forum/PostItem'
 export { ModerationTools } from './Forum/ModerationTools'
 
+// Social utilities
+export { NotificationBell } from '@/features/social/components/NotificationBell'
 // Hooks
 export { useWallet } from '@/hooks/useWallet'
 export { useWalletModal } from '@/hooks/useWalletModal'

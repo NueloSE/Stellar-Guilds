@@ -38,6 +38,14 @@ Stellar Guilds is a decentralized platform for community-driven projects and col
 - Higher reputation increases future payment rates or access to premium bounties
 - Merit-based ecosystem growth
 
+### 👥 Community & Social Engagement
+- Enhanced user profiles with activity feeds, achievements, and follow systems
+- Real-time community feed, direct messaging with optional end‑to‑end encryption, and notification bell
+- Discussion forums with moderation tools for collaborative conversations
+- Privacy controls and spam prevention mechanisms baked into settings
+- Designed for scalability with minimal latency and cross‑platform synchronization
+
+
 ## Architecture
 
 ### Contract Layer
