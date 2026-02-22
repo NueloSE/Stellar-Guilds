@@ -18,6 +18,20 @@ export { mockGuilds, mockBounties, mockProfiles, generateRandomGuild, generateRa
 // Wallet Components
 export { WalletConnectButton, WalletModal, TransactionConfirmation, WalletNotInstalled } from './WalletConnector'
 
+// Profile Enhancements
+export { ProfileSocialSection } from './Profile/ProfileSocialSection'
+
+// Messaging
+export { ChatWindow } from './Messaging/ChatWindow'
+export { MessageInput } from './Messaging/MessageInput'
+
+// Forum
+export { ThreadList } from './Forum/ThreadList'
+export { PostItem } from './Forum/PostItem'
+export { ModerationTools } from './Forum/ModerationTools'
+
+// Social utilities
+export { NotificationBell } from '@/features/social/components/NotificationBell'
 // Hooks
 export { useWallet } from '@/hooks/useWallet'
 export { useWalletModal } from '@/hooks/useWalletModal'

@@ -7,6 +7,7 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { GuildModule } from './guild/guild.module';
 import { BountyModule } from './bounty/bounty.module';
+import { SocialModule } from './social/social.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { BountyModule } from './bounty/bounty.module';
     UserModule,
     GuildModule,
     BountyModule,
+    SocialModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -31,7 +31,7 @@
 
 - [ ] Run migration: `npm run db:migrate --name "init"`
 - [ ] Verify migration succeeded (tables should be created)
-- [ ] Check with `npm run db:studio` to view schema in GUI
+- [ ] Check with `npm run db:studio` to view schema in GUI (look for new social models)
 
 ## Verification Phase
 
@@ -48,6 +48,7 @@
 - [ ] GuildMembership table exists in database
 - [ ] Bounty table exists in database
 - [ ] All foreign key relationships are created
+- [ ] Social tables created (Follow, Message, ForumThread, ForumPost, Notification, PrivacySettings)
 - [ ] Prisma client types are generated in `node_modules/@prisma/client`
 
 ## Ready to Develop
