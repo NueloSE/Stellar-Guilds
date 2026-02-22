@@ -1,17 +1,23 @@
-//! Bounty Escrow Module
-//!
-//! This module handles bounty creation, funding, claiming, and escrow management
-//! for the Stellar Guilds platform. It enables trustless payments by locking funds
-//! in escrow until work is verified and approved.
-//!
-//! # Features
-//! - Bounty creation with metadata and rewards
-//! - Escrow funding from any address
-//! - First-come-first-served bounty claiming
-//! - Work submission and approval flow
-//! - Automatic escrow release on completion
-//! - Cancellation with refund support
-//! - Expiration handling
+/// Bounty Escrow Module
+///
+/// This module handles bounty creation, funding, claiming, and escrow management
+/// for the Stellar Guilds platform.
+///
+/// # Events emitted
+/// All events follow the `(module, action)` topic convention defined in
+/// `crate::events::topics`. The envelope (version, timestamp, sequence) is
+/// automatically attached by `emit_event()`.
+///
+/// | Action              | Topic                    | Payload struct           |
+/// |---------------------|--------------------------|--------------------------|
+/// | Create bounty       | `(bounty, created)`      | `BountyCreatedEvent`     |
+/// | Fund bounty         | `(bounty, funded)`       | `BountyFundedEvent`      |
+/// | Claim bounty        | `(bounty, claimed)`      | `BountyClaimedEvent`     |
+/// | Submit work         | `(bounty, submitted)`    | `WorkSubmittedEvent`     |
+/// | Approve completion  | `(bounty, approved)`     | `BountyApprovedEvent`    |
+/// | Release escrow      | `(bounty, released)`     | `EscrowReleasedEvent`    |
+/// | Cancel bounty       | `(bounty, cancelled)`    | `BountyCancelledEvent`   |
+/// | Expire bounty       | `(bounty, expired)`      | `BountyExpiredEvent`     |
 
 pub mod escrow;
 pub mod storage;
@@ -25,32 +31,21 @@ use crate::bounty::types::{
 };
 use crate::dispute::storage as dispute_storage;
 use crate::dispute::types::DisputeReference;
+use crate::events::emit::emit_event;
+use crate::events::topics::{
+    ACT_APPROVED, ACT_CANCELLED, ACT_CLAIMED, ACT_CREATED, ACT_EXPIRED, ACT_FUNDED,
+    ACT_RELEASED, ACT_SUBMITTED, MOD_BOUNTY,
+};
 use crate::guild::membership::has_permission;
 use crate::guild::types::Role;
-use soroban_sdk::{Address, Env, String, Symbol, Vec};
+use soroban_sdk::{Address, Env, String, Vec};
 
-// Re-export types for external use
 pub use types::{Bounty, BountyStatus};
 
 /// Create a new bounty
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `guild_id` - The ID of the guild creating the bounty
-/// * `creator` - Address of the bounty creator (must be guild admin/owner)
-/// * `title` - Short title for the bounty
-/// * `description` - Detailed description of the task
-/// * `reward_amount` - Amount of tokens as reward
-/// * `token` - Address of the token contract (XLM wrapped or custom Stellar asset)
-/// * `expiry` - Absolute timestamp when the bounty expires
-///
-/// # Returns
-/// The ID of the newly created bounty
-///
-/// # Panics
-/// - If creator is not a guild admin or owner
-/// - If reward_amount is negative
-/// - If expiry is in the past
+/// # Events emitted
+/// - `(bounty, created)` → `BountyCreatedEvent`
 pub fn create_bounty(
     env: &Env,
     guild_id: u64,
@@ -63,12 +58,9 @@ pub fn create_bounty(
 ) -> u64 {
     creator.require_auth();
 
-    // Verify creator has Admin or Owner permissions in the guild
     if !has_permission(env, guild_id, creator.clone(), Role::Admin) {
         panic!("Unauthorized: Creator must be a guild admin or owner");
     }
-
-    // Validate inputs
     if reward_amount < 0 {
         panic!("Invalid reward amount: must be non-negative");
     }
@@ -77,20 +69,17 @@ pub fn create_bounty(
     if expiry <= created_at {
         panic!("Expiry must be in the future");
     }
-
     if title.len() == 0 || title.len() > 256 {
         panic!("Title must be between 1 and 256 characters");
     }
-
     if description.len() > 2048 {
         panic!("Description must be at most 2048 characters");
     }
 
     let bounty_id = get_next_bounty_id(env);
 
-    // Determine initial status based on reward amount
     let status = if reward_amount == 0 {
-        BountyStatus::Open // Zero-reward bounties are immediately open
+        BountyStatus::Open
     } else {
         BountyStatus::AwaitingFunds
     };
@@ -110,12 +99,12 @@ pub fn create_bounty(
         created_at,
         expires_at: expiry,
     };
-
     store_bounty(env, &bounty);
 
-    // Emit creation event
-    env.events().publish(
-        (Symbol::new(env, "bounty"), Symbol::new(env, "created")),
+    emit_event(
+        env,
+        MOD_BOUNTY,
+        ACT_CREATED,
         BountyCreatedEvent {
             bounty_id,
             guild_id,
@@ -131,19 +120,9 @@ pub fn create_bounty(
 
 /// Fund a bounty with tokens
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `bounty_id` - The ID of the bounty to fund
-/// * `funder` - Address providing the funds
-/// * `amount` - Amount of tokens to fund
-///
-/// # Returns
-/// `true` if funding was successful
-///
-/// # Panics
-/// - If bounty is not found
-/// - If amount is not positive
-/// - If bounty is not in a fundable state
+/// # Events emitted
+/// - `(bounty, funded)`  → `BountyFundedEvent`
+/// - `(bounty, expired)` → `BountyExpiredEvent`  (if bounty found to be expired)
 pub fn fund_bounty(env: &Env, bounty_id: u64, funder: Address, amount: i128) -> bool {
     funder.require_auth();
 
@@ -153,42 +132,33 @@ pub fn fund_bounty(env: &Env, bounty_id: u64, funder: Address, amount: i128) -> 
 
     let mut bounty = get_bounty(env, bounty_id).expect("Bounty not found");
 
-    // Check for expiration
     let now = env.ledger().timestamp();
     if now > bounty.expires_at {
         bounty.status = BountyStatus::Expired;
         store_bounty(env, &bounty);
-        env.events().publish(
-            (Symbol::new(env, "bounty"), Symbol::new(env, "expired")),
-            BountyExpiredEvent { bounty_id },
-        );
+        emit_event(env, MOD_BOUNTY, ACT_EXPIRED, BountyExpiredEvent { bounty_id });
         panic!("Bounty has expired");
     }
 
-    // Can only fund if awaiting funds or open (partial funding support)
     match bounty.status {
         BountyStatus::AwaitingFunds | BountyStatus::Open => {}
         _ => panic!("Bounty cannot be funded in current status"),
     }
 
-    // Transfer tokens to contract (escrow)
     lock_funds(env, &bounty.token, &funder, amount);
 
-    // Update funded amount
     bounty.funded_amount += amount;
-
     let is_fully_funded = bounty.funded_amount >= bounty.reward_amount;
 
-    // Transition to Open if fully funded
     if is_fully_funded && bounty.status == BountyStatus::AwaitingFunds {
         bounty.status = BountyStatus::Open;
     }
-
     store_bounty(env, &bounty);
 
-    // Emit funding event
-    env.events().publish(
-        (Symbol::new(env, "bounty"), Symbol::new(env, "funded")),
+    emit_event(
+        env,
+        MOD_BOUNTY,
+        ACT_FUNDED,
         BountyFundedEvent {
             bounty_id,
             funder,
@@ -203,49 +173,34 @@ pub fn fund_bounty(env: &Env, bounty_id: u64, funder: Address, amount: i128) -> 
 
 /// Claim a bounty (first-come-first-served)
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `bounty_id` - The ID of the bounty to claim
-/// * `claimer` - Address of the contributor claiming the bounty
-///
-/// # Returns
-/// `true` if claiming was successful
-///
-/// # Panics
-/// - If bounty is not found
-/// - If bounty is not open for claiming
-/// - If bounty has expired
+/// # Events emitted
+/// - `(bounty, claimed)`  → `BountyClaimedEvent`
+/// - `(bounty, expired)`  → `BountyExpiredEvent`  (if found expired during claim)
 pub fn claim_bounty(env: &Env, bounty_id: u64, claimer: Address) -> bool {
     claimer.require_auth();
 
     let mut bounty = get_bounty(env, bounty_id).expect("Bounty not found");
 
-    // Check for expiration
     let now = env.ledger().timestamp();
     if now > bounty.expires_at {
         bounty.status = BountyStatus::Expired;
         store_bounty(env, &bounty);
-        env.events().publish(
-            (Symbol::new(env, "bounty"), Symbol::new(env, "expired")),
-            BountyExpiredEvent { bounty_id },
-        );
+        emit_event(env, MOD_BOUNTY, ACT_EXPIRED, BountyExpiredEvent { bounty_id });
         panic!("Bounty has expired");
     }
 
-    // Must be Open to claim
     if bounty.status != BountyStatus::Open {
         panic!("Bounty is not open for claiming");
     }
 
-    // Update bounty state
     bounty.status = BountyStatus::Claimed;
     bounty.claimer = Some(claimer.clone());
-
     store_bounty(env, &bounty);
 
-    // Emit claim event
-    env.events().publish(
-        (Symbol::new(env, "bounty"), Symbol::new(env, "claimed")),
+    emit_event(
+        env,
+        MOD_BOUNTY,
+        ACT_CLAIMED,
         BountyClaimedEvent { bounty_id, claimer },
     );
 
@@ -254,44 +209,29 @@ pub fn claim_bounty(env: &Env, bounty_id: u64, claimer: Address) -> bool {
 
 /// Submit work for a claimed bounty
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `bounty_id` - The ID of the bounty
-/// * `submission_url` - URL or reference to the submitted work
-///
-/// # Returns
-/// `true` if submission was successful
-///
-/// # Panics
-/// - If bounty is not found
-/// - If caller is not the claimer
-/// - If bounty is not in Claimed status
+/// # Events emitted
+/// - `(bounty, submitted)` → `WorkSubmittedEvent`
 pub fn submit_work(env: &Env, bounty_id: u64, submission_url: String) -> bool {
     let mut bounty = get_bounty(env, bounty_id).expect("Bounty not found");
 
-    // Verify claimer
     let claimer = bounty.claimer.clone().expect("No claimer for this bounty");
     claimer.require_auth();
 
-    // Must be in Claimed status
     if bounty.status != BountyStatus::Claimed {
         panic!("Bounty is not in claimed status");
     }
-
-    // Validate submission URL
     if submission_url.len() == 0 || submission_url.len() > 512 {
         panic!("Submission URL must be between 1 and 512 characters");
     }
 
-    // Update status
     bounty.status = BountyStatus::UnderReview;
     bounty.submission_url = Some(submission_url.clone());
-
     store_bounty(env, &bounty);
 
-    // Emit submission event
-    env.events().publish(
-        (Symbol::new(env, "bounty"), Symbol::new(env, "submitted")),
+    emit_event(
+        env,
+        MOD_BOUNTY,
+        ACT_SUBMITTED,
         WorkSubmittedEvent {
             bounty_id,
             claimer,
@@ -304,45 +244,28 @@ pub fn submit_work(env: &Env, bounty_id: u64, submission_url: String) -> bool {
 
 /// Approve completion of a bounty
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `bounty_id` - The ID of the bounty to approve
-/// * `approver` - Address of the approver (must be guild admin/owner)
-///
-/// # Returns
-/// `true` if approval was successful
-///
-/// # Panics
-/// - If bounty is not found
-/// - If approver is not a guild admin/owner
-/// - If bounty is not under review
+/// # Events emitted
+/// - `(bounty, approved)` → `BountyApprovedEvent`
 pub fn approve_completion(env: &Env, bounty_id: u64, approver: Address) -> bool {
     approver.require_auth();
 
     let mut bounty = get_bounty(env, bounty_id).expect("Bounty not found");
 
-    // Verify approver permissions
     if !has_permission(env, bounty.guild_id, approver.clone(), Role::Admin) {
         panic!("Unauthorized: Approver must be a guild admin or owner");
     }
-
-    // Must be under review
     if bounty.status != BountyStatus::UnderReview {
         panic!("Bounty is not under review");
     }
 
-    // Update status
     bounty.status = BountyStatus::Completed;
-
     store_bounty(env, &bounty);
 
-    // Emit approval event
-    env.events().publish(
-        (Symbol::new(env, "bounty"), Symbol::new(env, "approved")),
-        BountyApprovedEvent {
-            bounty_id,
-            approver,
-        },
+    emit_event(
+        env,
+        MOD_BOUNTY,
+        ACT_APPROVED,
+        BountyApprovedEvent { bounty_id, approver },
     );
 
     true
@@ -350,17 +273,8 @@ pub fn approve_completion(env: &Env, bounty_id: u64, approver: Address) -> bool 
 
 /// Release escrow funds to the bounty claimer
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `bounty_id` - The ID of the completed bounty
-///
-/// # Returns
-/// `true` if release was successful
-///
-/// # Panics
-/// - If bounty is not found
-/// - If bounty is not completed
-/// - If no claimer exists
+/// # Events emitted
+/// - `(bounty, released)` → `EscrowReleasedEvent`
 pub fn release_escrow(env: &Env, bounty_id: u64) -> bool {
     if dispute_storage::is_reference_locked(env, &DisputeReference::Bounty, bounty_id) {
         panic!("Bounty is in active dispute");
@@ -368,27 +282,26 @@ pub fn release_escrow(env: &Env, bounty_id: u64) -> bool {
 
     let mut bounty = get_bounty(env, bounty_id).expect("Bounty not found");
 
-    // Must be completed
     if bounty.status != BountyStatus::Completed {
         panic!("Bounty is not completed");
     }
 
     let claimer = bounty.claimer.clone().expect("No claimer for this bounty");
 
-    // Release funds to claimer
     if bounty.funded_amount > 0 {
-        release_funds(env, &bounty.token, &claimer, bounty.funded_amount);
-
+        let amount = bounty.funded_amount;
+        release_funds(env, &bounty.token, &claimer, amount);
         bounty.funded_amount = 0;
         store_bounty(env, &bounty);
 
-        // Emit release event
-        env.events().publish(
-            (Symbol::new(env, "bounty"), Symbol::new(env, "released")),
+        emit_event(
+            env,
+            MOD_BOUNTY,
+            ACT_RELEASED,
             EscrowReleasedEvent {
                 bounty_id,
                 recipient: claimer,
-                amount: bounty.funded_amount,
+                amount,
                 token: bounty.token,
             },
         );
@@ -397,20 +310,10 @@ pub fn release_escrow(env: &Env, bounty_id: u64) -> bool {
     true
 }
 
-/// Cancel a bounty and refund escrowed funds
+/// Cancel a bounty and refund escrowed funds to the creator
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `bounty_id` - The ID of the bounty to cancel
-/// * `canceller` - Address attempting to cancel (must be creator or guild admin)
-///
-/// # Returns
-/// `true` if cancellation was successful
-///
-/// # Panics
-/// - If bounty is not found
-/// - If canceller is not authorized
-/// - If bounty is already completed or cancelled
+/// # Events emitted
+/// - `(bounty, cancelled)` → `BountyCancelledEvent`
 pub fn cancel_bounty(env: &Env, bounty_id: u64, canceller: Address) -> bool {
     canceller.require_auth();
 
@@ -420,7 +323,6 @@ pub fn cancel_bounty(env: &Env, bounty_id: u64, canceller: Address) -> bool {
 
     let mut bounty = get_bounty(env, bounty_id).expect("Bounty not found");
 
-    // Cannot cancel completed or already cancelled bounties
     match bounty.status {
         BountyStatus::Completed | BountyStatus::Cancelled => {
             panic!("Bounty cannot be cancelled in current status");
@@ -428,7 +330,6 @@ pub fn cancel_bounty(env: &Env, bounty_id: u64, canceller: Address) -> bool {
         _ => {}
     }
 
-    // Authorization: creator or guild admin can cancel
     let is_creator = bounty.creator == canceller;
     let is_admin = has_permission(env, bounty.guild_id, canceller.clone(), Role::Admin);
 
@@ -439,7 +340,6 @@ pub fn cancel_bounty(env: &Env, bounty_id: u64, canceller: Address) -> bool {
     let refund_amount = bounty.funded_amount;
     let refund_recipient = bounty.creator.clone();
 
-    // Refund escrowed funds to creator
     if refund_amount > 0 {
         release_funds(env, &bounty.token, &refund_recipient, refund_amount);
         bounty.funded_amount = 0;
@@ -448,9 +348,10 @@ pub fn cancel_bounty(env: &Env, bounty_id: u64, canceller: Address) -> bool {
     bounty.status = BountyStatus::Cancelled;
     store_bounty(env, &bounty);
 
-    // Emit cancellation event
-    env.events().publish(
-        (Symbol::new(env, "bounty"), Symbol::new(env, "cancelled")),
+    emit_event(
+        env,
+        MOD_BOUNTY,
+        ACT_CANCELLED,
         BountyCancelledEvent {
             bounty_id,
             canceller,
@@ -462,14 +363,10 @@ pub fn cancel_bounty(env: &Env, bounty_id: u64, canceller: Address) -> bool {
     true
 }
 
-/// Handle expired bounty - refund funds and update status
+/// Expire a bounty and refund escrowed funds if past its expiry timestamp
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `bounty_id` - The ID of the bounty to check/expire
-///
-/// # Returns
-/// `true` if bounty was expired and refunded
+/// # Events emitted
+/// - `(bounty, expired)` → `BountyExpiredEvent`
 pub fn expire_bounty(env: &Env, bounty_id: u64) -> bool {
     if dispute_storage::is_reference_locked(env, &DisputeReference::Bounty, bounty_id) {
         panic!("Bounty is in active dispute");
@@ -477,7 +374,6 @@ pub fn expire_bounty(env: &Env, bounty_id: u64) -> bool {
 
     let mut bounty = get_bounty(env, bounty_id).expect("Bounty not found");
 
-    // Already expired or completed
     if bounty.status == BountyStatus::Expired
         || bounty.status == BountyStatus::Completed
         || bounty.status == BountyStatus::Cancelled
@@ -487,10 +383,9 @@ pub fn expire_bounty(env: &Env, bounty_id: u64) -> bool {
 
     let now = env.ledger().timestamp();
     if now <= bounty.expires_at {
-        return false; // Not expired yet
+        return false;
     }
 
-    // Refund escrowed funds
     if bounty.funded_amount > 0 {
         release_funds(env, &bounty.token, &bounty.creator, bounty.funded_amount);
         bounty.funded_amount = 0;
@@ -499,45 +394,21 @@ pub fn expire_bounty(env: &Env, bounty_id: u64) -> bool {
     bounty.status = BountyStatus::Expired;
     store_bounty(env, &bounty);
 
-    // Emit expiration event
-    env.events().publish(
-        (Symbol::new(env, "bounty"), Symbol::new(env, "expired")),
-        BountyExpiredEvent { bounty_id },
-    );
+    emit_event(env, MOD_BOUNTY, ACT_EXPIRED, BountyExpiredEvent { bounty_id });
 
     true
 }
 
-// ============ Query Functions ============
+// ─── Query helpers ────────────────────────────────────────────────────────────
 
-/// Get bounty by ID
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `bounty_id` - The ID of the bounty
-///
-/// # Returns
-/// The Bounty struct
-///
-/// # Panics
-/// If bounty is not found
 pub fn get_bounty_data(env: &Env, bounty_id: u64) -> Bounty {
     get_bounty(env, bounty_id).expect("Bounty not found")
 }
 
-/// Get all bounties for a guild
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `guild_id` - The ID of the guild
-///
-/// # Returns
-/// Vector of all bounties belonging to the guild
 pub fn get_guild_bounties_list(env: &Env, guild_id: u64) -> Vec<Bounty> {
     get_guild_bounties(env, guild_id)
 }
 
-// Legacy function name for compatibility
 #[allow(dead_code)]
 pub fn cancel_bounty_auth(env: &Env, bounty_id: u64, canceller: Address) -> bool {
     cancel_bounty(env, bounty_id, canceller)

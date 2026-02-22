@@ -1,3 +1,8 @@
+use crate::events::emit::emit_event;
+use crate::events::topics::{
+    ACT_CANCELLED, ACT_DISTRIBUTED, ACT_FAILED, ACT_RECIPIENT_ADDED, MOD_PAYMENT,
+    ACT_CREATED,
+};
 use crate::payment::storage::{
     add_recipient_to_pool, clear_pool_recipients, get_next_pool_id, get_payment_pool,
     get_pool_recipients, recipient_exists_in_pool, store_payment_pool, update_pool_status,
@@ -31,11 +36,14 @@ const MIN_SHARE_AMOUNT: i128 = 1;
 
 /// Create a new payment pool
 ///
+/// # Events emitted
+/// - `(payment, created)` → `PaymentPoolCreatedEvent`
+///
 /// # Arguments
-/// * `env` - The contract environment
-/// * `amount` - Total amount to distribute
-/// * `token` - Token contract address (None for native XLM)
-/// * `rule` - Distribution rule type
+/// * `env`     - The contract environment
+/// * `amount`  - Total amount to distribute (must be > 0)
+/// * `token`   - Token contract address (None for native XLM)
+/// * `rule`    - Distribution rule type
 /// * `creator` - Address creating the pool
 ///
 /// # Returns
@@ -47,7 +55,6 @@ pub fn create_payment_pool(
     rule: DistributionRule,
     creator: Address,
 ) -> Result<u64, PaymentError> {
-    // Validate amount
     if amount <= 0 {
         return Err(PaymentError::InvalidAmount);
     }
@@ -63,33 +70,39 @@ pub fn create_payment_pool(
         rule: rule.clone(),
         created_at: env.ledger().timestamp(),
     };
-
     store_payment_pool(env, &pool);
 
-    // Emit event
-    let event = PaymentPoolCreatedEvent {
-        pool_id,
-        creator,
-        total_amount: amount,
-        token,
-        rule,
-    };
-    env.events().publish(("PaymentPoolCreated",), event);
+    emit_event(
+        env,
+        MOD_PAYMENT,
+        ACT_CREATED,
+        PaymentPoolCreatedEvent {
+            pool_id,
+            creator,
+            total_amount: amount,
+            token,
+            rule,
+        },
+    );
 
     Ok(pool_id)
 }
 
 /// Add a recipient to a payment pool
 ///
+/// # Events emitted
+/// - `(payment, recipient_added)` → `RecipientAddedEvent`
+///
 /// # Arguments
-/// * `env` - The contract environment
+/// * `env`     - The contract environment
 /// * `pool_id` - ID of the pool
 /// * `address` - Recipient address
-/// * `share` - Share percentage (0-100) or weight
-/// * `caller` - Address making the request
+/// * `share`   - Share percentage (0–100) or weight; meaning depends on pool rule
+/// * `caller`  - Address making the request (must be pool creator)
 ///
-/// # Returns
-/// true if successful
+/// # Errors
+/// `PoolNotFound`, `Unauthorized`, `PoolNotPending`, `DuplicateRecipient`,
+/// `InvalidShare`
 pub fn add_recipient(
     env: &Env,
     pool_id: u64,
@@ -99,35 +112,23 @@ pub fn add_recipient(
 ) -> Result<bool, PaymentError> {
     let pool = get_payment_pool(env, pool_id).ok_or(PaymentError::PoolNotFound)?;
 
-    // Only pool creator can add recipients
     if pool.created_by != caller {
         return Err(PaymentError::Unauthorized);
     }
-
-    // Pool must be pending
     if pool.status != DistributionStatus::Pending {
         return Err(PaymentError::PoolNotPending);
     }
-
-    // Check for duplicate recipient
     if recipient_exists_in_pool(env, pool_id, &address) {
         return Err(PaymentError::DuplicateRecipient);
     }
 
-    // Validate share based on rule
     match pool.rule {
         DistributionRule::Percentage => {
             if share == 0 || share > 100 {
                 return Err(PaymentError::InvalidShare);
             }
         }
-        DistributionRule::EqualSplit => {
-            // For equal split, share is ignored but must be > 0
-            if share == 0 {
-                return Err(PaymentError::InvalidShare);
-            }
-        }
-        DistributionRule::Weighted => {
+        DistributionRule::EqualSplit | DistributionRule::Weighted => {
             if share == 0 {
                 return Err(PaymentError::InvalidShare);
             }
@@ -140,25 +141,27 @@ pub fn add_recipient(
     };
     add_recipient_to_pool(env, pool_id, &recipient);
 
-    // Emit event
-    let event = RecipientAddedEvent {
-        pool_id,
-        recipient: address,
-        share,
-    };
-    env.events().publish(("RecipientAdded",), event);
+    emit_event(
+        env,
+        MOD_PAYMENT,
+        ACT_RECIPIENT_ADDED,
+        RecipientAddedEvent {
+            pool_id,
+            recipient: address,
+            share,
+        },
+    );
 
     Ok(true)
 }
 
-/// Validate that distribution rules are met
+/// Validate that a pool's distribution rules are met before execution.
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `pool_id` - ID of the pool
+/// For `Percentage` pools: all recipient shares must sum to exactly 100.
+/// For `EqualSplit` / `Weighted` pools: at least one recipient must exist.
 ///
 /// # Returns
-/// true if validation passes
+/// `true` if validation passes; `Err` otherwise.
 pub fn validate_distribution(env: &Env, pool_id: u64) -> Result<bool, PaymentError> {
     let pool = get_payment_pool(env, pool_id).ok_or(PaymentError::PoolNotFound)?;
     let recipients = get_pool_recipients(env, pool_id);
@@ -174,25 +177,13 @@ pub fn validate_distribution(env: &Env, pool_id: u64) -> Result<bool, PaymentErr
                 return Err(PaymentError::SharesNot100Percent);
             }
         }
-        DistributionRule::EqualSplit | DistributionRule::Weighted => {
-            // For equal split and weighted, we just need at least one recipient
-            // Validation happens during execution for amount calculations
-        }
+        DistributionRule::EqualSplit | DistributionRule::Weighted => {}
     }
 
     Ok(true)
 }
 
-/// Calculate the amount a recipient should receive
-///
-/// # Arguments
-/// * `pool` - The payment pool
-/// * `recipient` - The recipient
-/// * `total_recipients` - Total number of recipients
-/// * `total_weight` - Total weight for weighted distribution
-///
-/// # Returns
-/// The calculated amount
+/// Calculate the amount a single recipient should receive.
 fn calculate_recipient_amount(
     pool: &PaymentPool,
     recipient: &Recipient,
@@ -201,7 +192,6 @@ fn calculate_recipient_amount(
 ) -> Result<i128, PaymentError> {
     match pool.rule {
         DistributionRule::Percentage => {
-            // amount = total_amount * share / 100
             let amount = (pool.total_amount as i128)
                 .checked_mul(recipient.share as i128)
                 .ok_or(PaymentError::ArithmeticOverflow)?
@@ -210,7 +200,6 @@ fn calculate_recipient_amount(
             Ok(amount)
         }
         DistributionRule::EqualSplit => {
-            // amount = total_amount / total_recipients
             let amount = pool
                 .total_amount
                 .checked_div(total_recipients as i128)
@@ -219,7 +208,6 @@ fn calculate_recipient_amount(
         }
         DistributionRule::Weighted => {
             if let Some(total_w) = total_weight {
-                // amount = total_amount * recipient_weight / total_weight
                 let amount = (pool.total_amount as i128)
                     .checked_mul(recipient.share as i128)
                     .ok_or(PaymentError::ArithmeticOverflow)?
@@ -233,15 +221,20 @@ fn calculate_recipient_amount(
     }
 }
 
-/// Execute the distribution for a payment pool
+/// Execute the distribution for a payment pool.
+///
+/// Transfers tokens to each recipient according to the pool's distribution rule.
+/// On success emits `(payment, distributed)`; on insufficient balance emits
+/// `(payment, failed)` and returns `Err(InsufficientBalance)`.
+///
+/// # Events emitted
+/// - `(payment, distributed)` → `DistributionExecutedEvent`   (on success)
+/// - `(payment, failed)`      → `DistributionFailedEvent`     (on failure)
 ///
 /// # Arguments
-/// * `env` - The contract environment
-/// * `pool_id` - ID of the pool
-/// * `caller` - Address making the request
-///
-/// # Returns
-/// true if successful
+/// * `env`     - The contract environment
+/// * `pool_id` - ID of the pool to execute
+/// * `caller`  - Address making the request (must be pool creator)
 pub fn execute_distribution(
     env: &Env,
     pool_id: u64,
@@ -249,100 +242,84 @@ pub fn execute_distribution(
 ) -> Result<bool, PaymentError> {
     let mut pool = get_payment_pool(env, pool_id).ok_or(PaymentError::PoolNotFound)?;
 
-    // Only pool creator can execute
     if pool.created_by != caller {
         return Err(PaymentError::Unauthorized);
     }
-
-    // Pool must be pending
     if pool.status != DistributionStatus::Pending {
         return Err(PaymentError::PoolNotPending);
     }
 
-    // Validate distribution
     validate_distribution(env, pool_id)?;
 
     let recipients = get_pool_recipients(env, pool_id);
     let total_recipients = recipients.len() as u32;
 
-    // Calculate total weight for weighted distribution
     let total_weight = if pool.rule == DistributionRule::Weighted {
         Some(recipients.iter().map(|r| r.share).sum())
     } else {
         None
     };
 
-    // Check if contract has sufficient balance
+    // Check contract balance
     let contract_balance = if let Some(token_addr) = &pool.token {
-        // Custom token balance
         let token_client = soroban_sdk::token::Client::new(env, token_addr);
         token_client.balance(&env.current_contract_address())
     } else {
-        // Native XLM balance - for now, assume sufficient (would need ledger integration)
-        // TODO: Implement native XLM balance checking
-        i128::MAX
+        i128::MAX // TODO: implement native XLM balance check
     };
 
     if contract_balance < pool.total_amount {
         update_pool_status(env, pool_id, DistributionStatus::Failed);
-        let event = DistributionFailedEvent {
-            pool_id,
-            reason: String::from_str(env, "Insufficient contract balance"),
-        };
-        env.events().publish(("DistributionFailed",), event);
+        emit_event(
+            env,
+            MOD_PAYMENT,
+            ACT_FAILED,
+            DistributionFailedEvent {
+                pool_id,
+                reason: String::from_str(env, "Insufficient contract balance"),
+            },
+        );
         return Err(PaymentError::InsufficientBalance);
     }
 
-    // Execute transfers atomically
     let mut total_distributed = 0i128;
 
     for recipient in recipients.iter() {
         let amount = calculate_recipient_amount(&pool, &recipient, total_recipients, total_weight)?;
 
-        // Skip dust amounts
         if amount < MIN_SHARE_AMOUNT {
             continue;
         }
 
-        // Execute transfer
         if let Some(token_addr) = &pool.token {
-            // Transfer custom token
             let token_client = soroban_sdk::token::Client::new(env, token_addr);
             token_client.transfer(&env.current_contract_address(), &recipient.address, &amount);
-        } else {
-            // Native XLM transfer - TODO: implement
-            // For now, skip
         }
+        // TODO: native XLM transfer
 
         total_distributed = total_distributed
             .checked_add(amount)
             .ok_or(PaymentError::ArithmeticOverflow)?;
     }
 
-    // Update pool status
     pool.status = DistributionStatus::Executed;
     store_payment_pool(env, &pool);
 
-    // Emit success event
-    let event = DistributionExecutedEvent {
-        pool_id,
-        total_recipients: total_recipients as u32,
-        total_distributed,
-    };
-    env.events().publish(("DistributionExecuted",), event);
+    emit_event(
+        env,
+        MOD_PAYMENT,
+        ACT_DISTRIBUTED,
+        DistributionExecutedEvent {
+            pool_id,
+            total_recipients,
+            total_distributed,
+        },
+    );
 
     Ok(true)
 }
 
-/// Get the calculated amount for a specific recipient
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `pool_id` - ID of the pool
-/// * `address` - Recipient address
-///
-/// # Returns
-/// The amount the recipient should receive
+/// Get the calculated amount a specific recipient would receive.
 pub fn get_recipient_amount(
     env: &Env,
     pool_id: u64,
@@ -351,7 +328,6 @@ pub fn get_recipient_amount(
     let pool = get_payment_pool(env, pool_id).ok_or(PaymentError::PoolNotFound)?;
     let recipients = get_pool_recipients(env, pool_id);
 
-    // Find the recipient
     let recipient = recipients
         .iter()
         .find(|r| r.address == address)
@@ -367,24 +343,16 @@ pub fn get_recipient_amount(
     calculate_recipient_amount(&pool, &recipient, total_recipients, total_weight)
 }
 
-/// Cancel a payment pool
+/// Cancel a pending payment pool and clear its recipients.
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `pool_id` - ID of the pool
-/// * `caller` - Address making the request
-///
-/// # Returns
-/// true if successful
+/// # Events emitted
+/// - `(payment, cancelled)` → `PoolCancelledEvent`
 pub fn cancel_distribution(env: &Env, pool_id: u64, caller: Address) -> Result<bool, PaymentError> {
     let pool = get_payment_pool(env, pool_id).ok_or(PaymentError::PoolNotFound)?;
 
-    // Only pool creator can cancel
     if pool.created_by != caller {
         return Err(PaymentError::Unauthorized);
     }
-
-    // Can only cancel pending pools
     if pool.status != DistributionStatus::Pending {
         return Err(PaymentError::PoolNotPending);
     }
@@ -392,45 +360,35 @@ pub fn cancel_distribution(env: &Env, pool_id: u64, caller: Address) -> Result<b
     update_pool_status(env, pool_id, DistributionStatus::Cancelled);
     clear_pool_recipients(env, pool_id);
 
-    // Emit event
-    let event = PoolCancelledEvent {
-        pool_id,
-        cancelled_by: caller,
-    };
-    env.events().publish(("PoolCancelled",), event);
+    emit_event(
+        env,
+        MOD_PAYMENT,
+        ACT_CANCELLED,
+        PoolCancelledEvent {
+            pool_id,
+            cancelled_by: caller,
+        },
+    );
 
     Ok(true)
 }
 
-/// Get the status of a payment pool
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `pool_id` - ID of the pool
-///
-/// # Returns
-/// The distribution status
+/// Get the current status of a payment pool.
 pub fn get_pool_status(env: &Env, pool_id: u64) -> Result<DistributionStatus, PaymentError> {
     let pool = get_payment_pool(env, pool_id).ok_or(PaymentError::PoolNotFound)?;
     Ok(pool.status)
 }
 
-/// Batch distribute multiple pools
+/// Execute distributions for multiple pools in a single call.
 ///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `pool_ids` - List of pool IDs to distribute
-/// * `caller` - Address making the request
-///
-/// # Returns
-/// Vector of results (true for success, false for failure)
+/// Returns a vector of `bool` — `true` for each pool that distributed
+/// successfully, `false` for those that failed (individual errors are
+/// captured in the `(payment, failed)` events emitted per pool).
 pub fn batch_distribute(env: &Env, pool_ids: Vec<u64>, caller: Address) -> Vec<bool> {
     let mut results = Vec::new(env);
-
     for pool_id in pool_ids.iter() {
         let result = execute_distribution(env, pool_id, caller.clone()).is_ok();
         results.push_back(result);
     }
-
     results
 }

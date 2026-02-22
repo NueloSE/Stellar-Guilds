@@ -1517,6 +1517,14 @@
                     "storage": [
                       {
                         "key": {
+                          "symbol": "evt_seq"
+                        },
+                        "val": {
+                          "u64": 1
+                        }
+                      },
+                      {
+                        "key": {
                           "vec": [
                             {
                               "symbol": "AccountCounter"
@@ -1665,10 +1673,74 @@
           "v0": {
             "topics": [
               {
-                "symbol": "guild_created"
+                "symbol": "stellar_guilds"
               },
               {
-                "symbol": "v0"
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "created"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "guild"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 0
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000004",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "guild"
+              },
+              {
+                "symbol": "created"
               }
             ],
             "data": {

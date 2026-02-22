@@ -999,7 +999,16 @@
                     "executable": {
                       "wasm": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
                     },
-                    "storage": null
+                    "storage": [
+                      {
+                        "key": {
+                          "symbol": "evt_seq"
+                        },
+                        "val": {
+                          "u64": 3
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -1503,10 +1512,74 @@
           "v0": {
             "topics": [
               {
-                "symbol": "guild_created"
+                "symbol": "stellar_guilds"
               },
               {
-                "symbol": "v0"
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "created"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "guild"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 1000
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000004",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "guild"
+              },
+              {
+                "symbol": "created"
               }
             ],
             "data": {
@@ -1705,6 +1778,70 @@
                 },
                 {
                   "u64": 2000
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000004",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "stellar_guilds"
+              },
+              {
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "created"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "bounty"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 2
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 1000
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
                 }
               ]
             }
@@ -1937,6 +2074,70 @@
               }
             ],
             "data": "void"
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000004",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "stellar_guilds"
+              },
+              {
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "funded"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "bounty"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 3
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 1000
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                }
+              ]
+            }
           }
         }
       },

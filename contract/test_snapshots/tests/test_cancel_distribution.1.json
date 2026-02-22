@@ -475,7 +475,16 @@
                     "executable": {
                       "wasm": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
                     },
-                    "storage": null
+                    "storage": [
+                      {
+                        "key": {
+                          "symbol": "evt_seq"
+                        },
+                        "val": {
+                          "u64": 2
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -611,7 +620,74 @@
           "v0": {
             "topics": [
               {
-                "string": "PaymentPoolCreated"
+                "symbol": "stellar_guilds"
+              },
+              {
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "created"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "payment"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 0
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "payment"
+              },
+              {
+                "symbol": "created"
               }
             ],
             "data": {
@@ -735,7 +811,74 @@
           "v0": {
             "topics": [
               {
-                "string": "PoolCancelled"
+                "symbol": "stellar_guilds"
+              },
+              {
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "cancelled"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "payment"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 2
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 0
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "payment"
+              },
+              {
+                "symbol": "cancelled"
               }
             ],
             "data": {

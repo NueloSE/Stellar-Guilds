@@ -2,6 +2,7 @@
 
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
+mod events;
 mod guild;
 use guild::membership::{
     add_member, create_guild, get_all_members, get_member, has_permission, is_member,

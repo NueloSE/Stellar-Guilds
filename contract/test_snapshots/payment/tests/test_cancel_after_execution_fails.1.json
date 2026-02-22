@@ -680,7 +680,16 @@
                     "executable": {
                       "wasm": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
                     },
-                    "storage": null
+                    "storage": [
+                      {
+                        "key": {
+                          "symbol": "evt_seq"
+                        },
+                        "val": {
+                          "u64": 3
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -1283,7 +1292,74 @@
           "v0": {
             "topics": [
               {
-                "string": "PaymentPoolCreated"
+                "symbol": "stellar_guilds"
+              },
+              {
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "created"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "payment"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 0
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000004",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "payment"
+              },
+              {
+                "symbol": "created"
               }
             ],
             "data": {
@@ -1413,7 +1489,74 @@
           "v0": {
             "topics": [
               {
-                "string": "RecipientAdded"
+                "symbol": "stellar_guilds"
+              },
+              {
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "recipient_added"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "payment"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 2
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 0
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000004",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "payment"
+              },
+              {
+                "symbol": "recipient_added"
               }
             ],
             "data": {
@@ -1658,7 +1801,74 @@
           "v0": {
             "topics": [
               {
-                "string": "DistributionExecuted"
+                "symbol": "stellar_guilds"
+              },
+              {
+                "symbol": "event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action"
+                  },
+                  "val": {
+                    "symbol": "distributed"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "module"
+                  },
+                  "val": {
+                    "symbol": "payment"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sequence"
+                  },
+                  "val": {
+                    "u64": 3
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 0
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000004",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "payment"
+              },
+              {
+                "symbol": "distributed"
               }
             ],
             "data": {
@@ -1768,7 +1978,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'PoolNotPending' from contract function 'Symbol(obj#485)'"
+                  "string": "caught panic 'PoolNotPending' from contract function 'Symbol(obj#507)'"
                 },
                 {
                   "u64": 1
